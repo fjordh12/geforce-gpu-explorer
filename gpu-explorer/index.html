@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GeForce GPU Explorer — Specifications, Pricing & Analytics</title>
+    <meta name="description" content="Interactive 3D explorer and data analytics for 46 NVIDIA GeForce desktop GPUs, from GTX 10 to RTX 50 series.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body id="top">
+
+    <!-- ============================== NAVIGATION ============================== -->
+    <header class="nav">
+        <div class="nav-inner">
+            <a class="wordmark" href="#top" aria-label="GeForce GPU Explorer">
+                <span class="wordmark-bar"></span>
+                <span class="wordmark-text">GEFORCE</span>
+                <span class="wordmark-sub">GPU Explorer</span>
+            </a>
+
+            <nav class="nav-links" aria-label="Sections">
+                <a href="#explorer" class="active">Explorer</a>
+                <a href="#specs">Specifications</a>
+                <a href="#analytics">Analytics</a>
+                <a href="#catalog">Catalog</a>
+            </nav>
+
+            <div class="nav-actions">
+                <a href="../index.html" class="btn btn-ghost" title="Kembali ke Portfolio Utama">← Portfolio</a>
+                <label class="btn btn-ghost" for="glbUploadInput" title="Load your own Blender model (.glb / .gltf)">
+                    Load .glb model
+                    <input type="file" id="glbUploadInput" accept=".glb,.gltf" hidden>
+                </label>
+                <a href="nvidia_gpus_clean.csv" download class="btn btn-primary">Download dataset</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- ================================ HERO ================================ -->
+        <section class="hero" id="explorer">
+            <div class="hero-stage" id="canvasWrapper">
+                <canvas id="gpuCanvas"></canvas>
+                <div class="stage-fallback" id="stageFallback" hidden></div>
+            </div>
+            <div class="hero-vignette" aria-hidden="true"></div>
+
+            <div class="hero-copy">
+                <p class="eyebrow" id="heroEyebrow">GeForce RTX 40 Series · Ada Lovelace</p>
+                <h1 id="activeGpuName">GeForce RTX 4080</h1>
+                <p class="hero-sub" id="heroSub">16 GB GDDR6X · 9,728 CUDA cores · 320 W</p>
+
+                <div class="hero-price">
+                    <span class="hero-price-value" id="specPrice">$1,199</span>
+                    <span class="hero-price-note" id="priceNote">Average retail price</span>
+                </div>
+
+                <div class="picker" role="group" aria-label="Select GPU">
+                    <button class="picker-btn" id="btnPrevGpu" aria-label="Previous GPU">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <select id="gpuQuickSelect" aria-label="Choose a GPU"></select>
+                    <button class="picker-btn" id="btnNextGpu" aria-label="Next GPU">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                </div>
+
+                <ol class="part-list" aria-label="Inspect components">
+                    <li><button class="part-item active" data-part="overview"><span class="part-no">01</span>Overview</button></li>
+                    <li><button class="part-item" data-part="die"><span class="part-no">02</span>GPU die</button></li>
+                    <li><button class="part-item" data-part="vram"><span class="part-no">03</span>Memory</button></li>
+                    <li><button class="part-item" data-part="cooling"><span class="part-no">04</span>Cooling</button></li>
+                    <li><button class="part-item" data-part="power"><span class="part-no">05</span>Power</button></li>
+                </ol>
+
+                <div class="part-info" id="partInfo">
+                    <h2 id="hotspotTitle">Overview</h2>
+                    <p id="hotspotDesc"></p>
+                </div>
+            </div>
+
+            <!-- Icon-only viewer controls -->
+            <div class="viewer-tools" role="toolbar" aria-label="3D viewer controls">
+                <button class="tool" id="btnAutoRotate" data-tip="Auto-rotate" aria-label="Toggle auto-rotate" aria-pressed="false">
+                    <svg viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+                </button>
+                <button class="tool" id="btnExplodeView" data-tip="Exploded view" aria-label="Toggle exploded view" aria-pressed="false">
+                    <svg viewBox="0 0 24 24"><path d="m12 3 9 4.5-9 4.5-9-4.5z"/><path d="m3 12 9 4.5 9-4.5"/><path d="m3 16.5 9 4.5 9-4.5"/></svg>
+                </button>
+                <button class="tool active" id="btnTogglePins" data-tip="Spec pins" aria-label="Toggle spec pins" aria-pressed="true">
+                    <svg viewBox="0 0 24 24"><path d="M12 21s-7-6.2-7-11a7 7 0 0 1 14 0c0 4.8-7 11-7 11z"/><circle cx="12" cy="10" r="2.5"/></svg>
+                </button>
+                <span class="tool-sep"></span>
+                <button class="tool" data-view="front" data-tip="Front view" aria-label="Front view">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><circle cx="9" cy="12" r="2.6"/><circle cx="16" cy="12" r="1.2"/></svg>
+                </button>
+                <button class="tool" data-view="top" data-tip="Top view" aria-label="Top view">
+                    <svg viewBox="0 0 24 24"><path d="M3 15h18v3H3z"/><path d="M6 15V9h12v6"/><path d="M9 9V6h6v3"/></svg>
+                </button>
+                <button class="tool" data-view="back" data-tip="Back view" aria-label="Back view">
+                    <svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="1.5"/><path d="M7 10h10M7 14h10"/></svg>
+                </button>
+                <button class="tool" id="btnResetCam" data-tip="Reset view" aria-label="Reset camera">
+                    <svg viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+                </button>
+            </div>
+
+            <p class="viewer-hint" id="viewerHint">Drag to rotate · click the model, then scroll to zoom</p>
+
+            <!-- Key spec ribbon -->
+            <div class="ribbon" aria-label="Key specifications">
+                <div class="ribbon-item"><span class="ribbon-label">CUDA cores</span><strong class="ribbon-value" id="ribCuda">9,728</strong></div>
+                <div class="ribbon-item"><span class="ribbon-label">Memory</span><strong class="ribbon-value" id="ribVram">16<small>GB</small></strong></div>
+                <div class="ribbon-item"><span class="ribbon-label">Boost clock</span><strong class="ribbon-value" id="ribBoost">2,505<small>MHz</small></strong></div>
+                <div class="ribbon-item"><span class="ribbon-label">FP32 compute</span><strong class="ribbon-value" id="ribTflops">48.74<small>TFLOPS</small></strong></div>
+                <div class="ribbon-item"><span class="ribbon-label">Board power</span><strong class="ribbon-value" id="ribTdp">320<small>W</small></strong></div>
+            </div>
+        </section>
+
+        <!-- ============================ SPECIFICATIONS ============================ -->
+        <section class="section" id="specs">
+            <div class="wrap">
+                <header class="section-head">
+                    <p class="eyebrow">Specifications</p>
+                    <h2 class="section-title" id="specsTitle">GeForce RTX 4080</h2>
+                    <p class="section-lead" id="specsLead">Full technical breakdown and pricing for the selected GPU.</p>
+                </header>
+
+                <div class="specs-layout">
+                    <div class="spec-groups" id="specGroups"></div>
+
+                    <aside class="spec-side">
+                        <div class="side-block">
+                            <h3 class="side-title">Performance profile</h3>
+                            <p class="side-note">Relative to the strongest GPU in the dataset.</p>
+                            <div class="meter">
+                                <div class="meter-top"><span>FP32 compute</span><strong id="specTflops">48.74 TFLOPS</strong></div>
+                                <div class="meter-track"><div class="meter-fill" id="barTflops"></div></div>
+                            </div>
+                            <div class="meter">
+                                <div class="meter-top"><span>Memory bandwidth</span><strong id="specBandwidth">717 GB/s</strong></div>
+                                <div class="meter-track"><div class="meter-fill" id="barBandwidth"></div></div>
+                            </div>
+                            <div class="meter">
+                                <div class="meter-top"><span>Power efficiency</span><strong id="specEff">0.152 TFLOPS/W</strong></div>
+                                <div class="meter-track"><div class="meter-fill" id="barEff"></div></div>
+                            </div>
+                            <div class="meter">
+                                <div class="meter-top"><span>Value (lower price per TFLOPS is better)</span><strong id="specValueScore">$24.6</strong></div>
+                                <div class="meter-track"><div class="meter-fill" id="barValue"></div></div>
+                            </div>
+                        </div>
+
+                        <div class="side-block">
+                            <div class="side-title-row">
+                                <h3 class="side-title">Retail listings</h3>
+                                <span class="tag" id="specPriceRangeBadge">—</span>
+                            </div>
+                            <div class="listing" id="aibList"></div>
+                        </div>
+                    </aside>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================ ANALYTICS ================================ -->
+        <section class="section section-alt" id="analytics">
+            <div class="wrap">
+                <header class="section-head">
+                    <p class="eyebrow">Data analytics</p>
+                    <h2 class="section-title">Price, performance and efficiency</h2>
+                    <p class="section-lead">Select any point or bar to load that GPU into the 3D viewer above.</p>
+                </header>
+
+                <div class="kpi-strip" aria-label="Dataset highlights">
+                    <div class="kpi"><span class="kpi-label">GPUs analysed</span><strong class="kpi-value" id="kpiTotalModels">46</strong><span class="kpi-sub" id="kpiFilterStatus">GTX 10 to RTX 50 series</span></div>
+                    <div class="kpi"><span class="kpi-label">Best value</span><strong class="kpi-value" id="kpiBestValue">—</strong><span class="kpi-sub" id="kpiBestValueSub">—</span></div>
+                    <div class="kpi"><span class="kpi-label">Most efficient</span><strong class="kpi-value" id="kpiBestEff">—</strong><span class="kpi-sub" id="kpiBestEffSub">—</span></div>
+                    <div class="kpi"><span class="kpi-label">Average price</span><strong class="kpi-value" id="kpiAvgPrice">—</strong><span class="kpi-sub" id="kpiPriceRange">—</span></div>
+                </div>
+
+                <div class="charts">
+                    <article class="chart-panel chart-wide">
+                        <header class="chart-head">
+                            <div>
+                                <h3>Price vs. performance</h3>
+                                <p>Upper-left is better value. Price axis is logarithmic.</p>
+                            </div>
+                        </header>
+                        <div class="chart-box"><canvas id="scatterChart"></canvas></div>
+                    </article>
+
+                    <article class="chart-panel">
+                        <header class="chart-head">
+                            <div>
+                                <h3>Top 12 ranking</h3>
+                                <p>Ranked by the selected metric.</p>
+                            </div>
+                            <select id="rankingMetricSelect" class="select" aria-label="Ranking metric">
+                                <option value="tflops">FP32 compute (TFLOPS)</option>
+                                <option value="pricePerTflops">Best value ($ per TFLOPS)</option>
+                                <option value="perfPerWatt">Efficiency (TFLOPS per W)</option>
+                                <option value="bandwidth">Memory bandwidth (GB/s)</option>
+                            </select>
+                        </header>
+                        <div class="chart-box"><canvas id="rankingChart"></canvas></div>
+                    </article>
+
+                    <article class="chart-panel chart-full">
+                        <header class="chart-head">
+                            <div>
+                                <h3>Head-to-head comparison</h3>
+                                <p>Compare the selected GPU against any other.</p>
+                            </div>
+                            <div class="versus">
+                                <span class="versus-a" id="compareLabelA">RTX 4080</span>
+                                <span class="versus-vs">vs</span>
+                                <select id="compareGpuSelect" class="select" aria-label="Compare against"></select>
+                            </div>
+                        </header>
+                        <div class="compare-layout">
+                            <div class="radar-box"><canvas id="radarChart"></canvas></div>
+                            <div class="compare-table" id="compareDiffTable"></div>
+                        </div>
+                    </article>
+                </div>
+            </div>
+        </section>
+
+        <!-- ================================= CATALOG ================================= -->
+        <section class="section" id="catalog">
+            <div class="wrap">
+                <header class="section-head">
+                    <p class="eyebrow">Catalog</p>
+                    <h2 class="section-title">All GPUs in the dataset</h2>
+                    <p class="section-lead">Search, filter and sort. Select a row to inspect that GPU.</p>
+                </header>
+
+                <div class="filters">
+                    <input type="search" id="searchInput" class="input" placeholder="Search by name, chip or memory type" aria-label="Search GPUs">
+                    <select id="seriesFilter" class="select" aria-label="Filter by series">
+                        <option value="ALL">All series</option>
+                        <option value="RTX 50">RTX 50 · Blackwell</option>
+                        <option value="RTX 40">RTX 40 · Ada Lovelace</option>
+                        <option value="RTX 30">RTX 30 · Ampere</option>
+                        <option value="RTX 20">RTX 20 · Turing</option>
+                        <option value="GTX 16">GTX 16 · Turing</option>
+                        <option value="GTX 10">GTX 10 · Pascal</option>
+                        <option value="Titan / Pro">Titan / Workstation</option>
+                    </select>
+                    <select id="vramFilter" class="select" aria-label="Minimum VRAM">
+                        <option value="0">Any memory size</option>
+                        <option value="8">8 GB or more</option>
+                        <option value="12">12 GB or more</option>
+                        <option value="16">16 GB or more</option>
+                        <option value="24">24 GB or more</option>
+                    </select>
+                    <span class="result-count" id="resultCount"></span>
+                </div>
+
+                <div class="table-scroll">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th data-sort="name">GPU</th>
+                                <th data-sort="year">Year</th>
+                                <th data-sort="vram" class="num">Memory</th>
+                                <th data-sort="cuda" class="num">CUDA cores</th>
+                                <th data-sort="boostClock" class="num">Boost</th>
+                                <th data-sort="tflops" class="num">TFLOPS</th>
+                                <th data-sort="tdp" class="num">TDP</th>
+                                <th data-sort="marketPrice" class="num">Price</th>
+                                <th data-sort="pricePerTflops" class="num">$ / TFLOPS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="gpuTableBody"></tbody>
+                    </table>
+                </div>
+                <p class="table-note">* Reference price: no retail listings for this model exist in the source dataset.</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- ================================== FOOTER ================================== -->
+    <footer class="footer">
+        <div class="wrap footer-inner">
+            <div>
+                <p class="footer-title">About this project</p>
+                <p class="footer-text">An independent data analytics portfolio project. Specifications for 46 desktop GPUs were curated and cleaned from public GPU spec datasets. Where retail listings exist in the dataset, price is their mean; otherwise a reference street-price estimate is used (shown alongside the launch MSRP), so cross-generation value comparisons are indicative rather than exact. The 3D model is a procedural illustration scaled from dataset specifications, not an exact product render.</p>
+            </div>
+            <div>
+                <p class="footer-text legal">NVIDIA, GeForce, RTX, GTX and CUDA are trademarks of NVIDIA Corporation. This project is not affiliated with, endorsed by or sponsored by NVIDIA.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="dataset.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
